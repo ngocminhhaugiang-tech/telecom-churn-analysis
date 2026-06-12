@@ -1,0 +1,82 @@
+--------------------------------------------------------------------------------
+-- CHAP 2: Customer Demographics & Cohort Segmentation -------------------------
+--------------------------------------------------------------------------------
+
+-- 1. Phân tích Churn theo Giới tính và Nhóm tuổi
+SELECT
+    gender,
+    CASE
+        WHEN under_30 = 'Yes' THEN 'Under 30'
+        WHEN age BETWEEN 30 AND 50 THEN '30–50'
+        WHEN age > 50 AND senior_citizen = 'No' THEN '51–64'
+        ELSE 'Senior (65+)'
+    END AS age_group,
+    COUNT(*) AS total_customers,
+    COUNT(CASE WHEN churn_label = 'Yes' THEN 1 END) AS churned,
+    ROUND(
+        COUNT(CASE WHEN churn_label = 'Yes' THEN 1 END) * 100.0 / COUNT(*), 2
+    ) AS churn_rate_pct,
+    ROUND(AVG(CASE WHEN churn_label = 'Yes' THEN monthly_charge END), 2) AS avg_monthly_charge_churned,
+    ROUND(AVG(cltv), 0) AS avg_cltv
+FROM vw_churn_master
+GROUP BY gender, 
+         CASE
+             WHEN under_30 = 'Yes' THEN 'Under 30'
+             WHEN age BETWEEN 30 AND 50 THEN '30–50'
+             WHEN age > 50 AND senior_citizen = 'No' THEN '51–64'
+             ELSE 'Senior (65+)'
+         END
+ORDER BY churn_rate_pct DESC;
+
+
+-- 2. Phân tích Churn theo Cấu trúc gia đình (Demographic Family Segment)
+SELECT
+    CASE
+        WHEN married = 'Yes' AND dependents = 'No' THEN 'Married'
+        WHEN married = 'Yes' AND dependents = 'Yes' AND number_of_dependents >= 4 THEN 'Family with 4+'
+        WHEN married = 'Yes' AND dependents = 'Yes' AND number_of_dependents < 4 THEN CONCAT('Family with ', number_of_dependents::VARCHAR(10))
+        ELSE 'Single'
+    END AS family_segment,
+    COUNT(*) AS total_customers,
+    COUNT(CASE WHEN churn_label = 'Yes' THEN 1 END) AS churned,
+    ROUND(
+        COUNT(CASE WHEN churn_label = 'Yes' THEN 1 END) * 100.0 / COUNT(*), 2
+    ) AS churn_rate_pct,
+    ROUND(AVG(CASE WHEN churn_label = 'Yes' THEN monthly_charge END), 2) AS avg_monthly_charge_churned,
+    ROUND(AVG(cltv), 0) AS avg_cltv
+FROM vw_churn_master
+GROUP BY 1
+ORDER BY total_customers DESC;
+
+
+-- 3. Phân tích mức độ gắn bó (Tenure Segment) - Đo lường sự trung thành
+SELECT
+    segment_tenure,
+    COUNT(CASE WHEN churn_value = 0 THEN 1 END) AS total_retained,
+    COUNT(CASE WHEN churn_value = 1 THEN 1 END) AS total_churned,
+    ROUND(
+        COUNT(CASE WHEN churn_label = 'Yes' THEN 1 END) * 100.0 / COUNT(*), 2
+    ) AS churn_rate_pct
+FROM vw_churn_master
+GROUP BY segment_tenure
+ORDER BY total_churned DESC;
+
+
+-- 4. Phân tích Churn theo Mật độ khu vực (Urban vs Rural)
+SELECT
+    CASE
+        WHEN population_size >= 100000 THEN 'Urban (100k+)'
+        WHEN population_size >= 50000  THEN 'Suburban (50k–100k)'
+        WHEN population_size >= 10000  THEN 'Town (10k–50k)'
+        ELSE 'Rural (<10k)'
+    END AS area_type,
+    COUNT(*) AS total_customers,
+    COUNT(CASE WHEN churn_label = 'Yes' THEN 1 END) AS churned,
+    ROUND(
+        COUNT(CASE WHEN churn_label = 'Yes' THEN 1 END) * 100.0 / COUNT(*), 2
+    ) AS churn_rate_pct,
+    ROUND(AVG(cltv), 0) AS avg_cltv,
+    ROUND(AVG(monthly_charge), 2) AS avg_monthly_charge
+FROM vw_churn_master
+GROUP BY 1
+ORDER BY area_type DESC;
